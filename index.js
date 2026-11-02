@@ -1,13 +1,15 @@
 
-
-import "dotenv/config" ; 
 import cors from "cors";
+import  "dotenv/config" ; 
 import express from "express"; 
 import { MongoClient, ObjectId } from 'mongodb';
 
 
 const app = express();
 const port = process.env.PORT || 5000 ;
+
+
+// http://localhost:5000
 
 // middleware
 app.use(cors());
@@ -16,10 +18,64 @@ app.use(express.json());
 
 // initial server get data
 app.get("/" , (req,res) => {
-    res.send("Simple Crud is Running");
+    res.send({message:"Server is Running.."});
 })
 
 // server connect
 app.listen(port ,() =>{
-    console.log(`Crud Server is Running On Port : ${port}`);
+    console.log(`Server is Running On Port : ${port}`);
 } )
+
+
+// ...........Mongodb Database connection...........
+
+
+const client = new MongoClient(process.env.MONGODB_URI);
+
+    export async function connectToMongoDB() {
+
+    try {
+        await client.connect();
+        console.log("You successfully connected to MongoDB!");
+        return client;
+    } 
+    catch (err) {
+        console.dir(err);
+    }
+    }
+
+
+
+const mongoDbClient = await connectToMongoDB() ;
+
+const db = mongoDbClient.db("booknook-server-side");
+const allBookCollection = db.collection("All-Books") ;
+
+// ......................................
+
+
+// post book or add book
+
+// http://localhost:5000/add-books
+
+app.post("/add-books" , async(req,res) => {
+
+   const data = {
+    ...req.body,
+    createdAt: new Date()
+    };
+    const  result = await allBookCollection.insertOne(data);
+    
+    res.send(result);
+})
+
+
+// get books data 
+app.get("/all-books", async (req,res)=>{
+
+    const cursor = allBookCollection.find({}) ;
+    const allBooks = await cursor.toArray() ;
+    res.send(allBooks) ;
+
+
+})
