@@ -9,24 +9,11 @@ const app = express();
 const port = process.env.PORT || 5000 ;
 
 
-// http://localhost:5000
+
 
 // middleware
 app.use(cors());
 app.use(express.json());
-
-
-// initial server get data
-app.get("/" , (req,res) => {
-    res.send({message:"Server is Running.."});
-})
-
-// server connect
-app.listen(port ,() =>{
-    console.log(`Server is Running On Port : ${port}`);
-} )
-
-
 // ...........Mongodb Database connection...........
 
 
@@ -44,14 +31,18 @@ const client = new MongoClient(process.env.MONGODB_URI);
     }
     }
 
-
-
 const mongoDbClient = await connectToMongoDB() ;
 
 const db = mongoDbClient.db("booknook-server-side");
 const allBookCollection = db.collection("All-Books") ;
 
 // ......................................
+
+
+// initial server get data
+app.get("/" , (req,res) => {
+    res.send({message:"Server is Running.."});
+})
 
 
 // post book or add book
@@ -80,6 +71,15 @@ app.get("/all-books", async (req,res)=>{
 
 })
 
+app.get("/books-detail/:id" , async(req,res) => {
+    const id = req.params.id ;
+
+    const query = { _id: new ObjectId(id) };
+    const result = await allBookCollection.findOne(query) ;
+    res.send(result) ;
+
+})
+
 // Get latest 6 books (New Arrivals)
 app.get("/new-arrivals", async (req, res) => {
   const newArrivals = await allBookCollection
@@ -90,3 +90,9 @@ app.get("/new-arrivals", async (req, res) => {
 
   res.send(newArrivals);
 });
+
+
+// server connect
+app.listen(port ,() =>{
+    console.log(`Server is Running On Port : ${port}`);
+} )
