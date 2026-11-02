@@ -79,3 +79,14 @@ app.get("/all-books", async (req,res)=>{
 
 
 })
+
+// Get latest 6 books (New Arrivals)
+app.get("/new-arrivals", async (req, res) => {
+  const newArrivals = await allBookCollection
+    .find({})
+    .sort({ createdAt: -1 })
+    .limit(6)
+    .toArray();
+
+  res.send(newArrivals);
+});
