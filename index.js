@@ -36,6 +36,9 @@ const mongoDbClient = await connectToMongoDB() ;
 const db = mongoDbClient.db("booknook-server-side");
 const allBookCollection = db.collection("All-Books") ;
 
+// to get details of book 
+const bookDetailsCollection = db.collection("Book-Details");
+
 // ......................................
 
 
@@ -61,6 +64,16 @@ app.post("/add-books" , async(req,res) => {
 })
 
 
+// Add additional book information
+app.post("/book-details", async (req, res) => {
+    const data = req.body;
+
+    const result = await bookDetailsCollection.insertOne(data);
+
+    res.send(result);
+});
+
+
 // get books data 
 app.get("/all-books", async (req,res)=>{
 
@@ -71,14 +84,36 @@ app.get("/all-books", async (req,res)=>{
 
 })
 
-app.get("/books-detail/:id" , async(req,res) => {
-    const id = req.params.id ;
 
-    const query = { _id: new ObjectId(id) };
-    const result = await allBookCollection.findOne(query) ;
-    res.send(result) ;
+// detail data
 
-})
+app.get("/book-details/:id", async (req, res) => {
+
+    const id = req.params.id;
+
+    // basic book information from all books
+    const book = await allBookCollection.findOne({
+        _id: new ObjectId(id)
+    });
+
+    if (!book) {
+        return res.status(404).send({
+            message: "Book not found"
+        });
+    }
+
+    //  additional information using Title
+    const bookDetails = await bookDetailsCollection.findOne({
+        Title: book.Title
+    });
+
+    // data together 
+    res.send({
+        ...book,
+        details: bookDetails
+    });
+
+});
 
 // Get latest 6 books (New Arrivals)
 app.get("/new-arrivals", async (req, res) => {
