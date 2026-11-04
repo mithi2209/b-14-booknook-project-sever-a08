@@ -36,22 +36,20 @@ const mongoDbClient = await connectToMongoDB() ;
 const db = mongoDbClient.db("booknook-server-side");
 const allBookCollection = db.collection("All-Books") ;
 
-// to get details of book 
-const bookDetailsCollection = db.collection("Book-Details");
+
+// 
+const borrowedBooksCollection = db.collection("Borrowed-Books");
 
 // ......................................
 
 
-// initial server get data
+// initial checking for server get data
 app.get("/" , (req,res) => {
     res.send({message:"Server is Running.."});
 })
 
 
 // post book or add book
-
-// http://localhost:5000/add-books
-
 app.post("/add-books" , async(req,res) => {
 
    const data = {
@@ -64,13 +62,67 @@ app.post("/add-books" , async(req,res) => {
 })
 
 
-// Add additional book information
-app.post("/book-details", async (req, res) => {
-    const data = req.body;
 
-    const result = await bookDetailsCollection.insertOne(data);
+// post borrowed book
+app.post("/borrow-books", async (req, res) => {
 
-    res.send(result);
+    const { bookId, userEmail } = req.body;
+
+
+    // Find the book
+    const book = await allBookCollection.findOne({
+        _id: new ObjectId(bookId)
+    });
+
+
+
+    if (!book) {
+        return res.send({
+            message: "Book not found"
+        });
+    }
+
+    // Checking if the  already borrowed
+    const alreadyBorrowed = await borrowedBooksCollection.findOne({
+        bookId: new ObjectId(bookId),
+        userEmail : userEmail ,
+        status: "borrowed"
+    });
+
+    if (alreadyBorrowed) {
+        return res.send({
+            message: "You already borrowed this book"
+        });
+    }
+
+    // borrowing books and return dates
+    const borrowDate = new Date();
+
+    const returnDate = new Date(borrowDate);
+    returnDate.setDate(returnDate.getDate() + 14);
+    // ...-->setDate= days
+    // returnDate.setTime(returnDate.getDate() + 14 * 24 * 60 * 1000); -->setTime = time in milliseconds
+
+    // Borrow book data
+    const borrowedBook = {
+        bookId: new ObjectId(bookId),
+        bookTitle: book.Title,
+        bookImage: book.Image,
+        userEmail: userEmail,
+        borrowDate: borrowDate,
+        returnDate: returnDate,
+        status: "borrowed"
+    };
+      console.log(bookId,
+            userEmail)
+    // borrowing data save
+    const result = await borrowedBooksCollection.insertOne(borrowedBook);
+
+    res.send({
+        message: "Book borrowed successfully",
+        result
+    });
+
 });
 
 
@@ -86,34 +138,45 @@ app.get("/all-books", async (req,res)=>{
 
 
 // detail data
-
 app.get("/book-details/:id", async (req, res) => {
 
     const id = req.params.id;
 
-    // basic book information from all books
+   
     const book = await allBookCollection.findOne({
         _id: new ObjectId(id)
     });
 
     if (!book) {
-        return res.status(404).send({
+        return res.send({
             message: "Book not found"
         });
     }
 
-    //  additional information using Title
-    const bookDetails = await bookDetailsCollection.findOne({
-        Title: book.Title
-    });
-
     // data together 
-    res.send({
-        ...book,
-        details: bookDetails
-    });
+    res.send(book);
 
 });
+
+
+// Get borrowed books of a user
+app.get("/borrowed-books/:userEmail", async (req, res) => {
+
+   const userEmail = req.params.userEmail;
+
+    // get user's borrowed books by email
+    const borrowedBooks = await borrowsCollection.find({
+        userEmail: userEmail,
+        status: "borrowed"
+    }).toArray();
+
+    res.send(borrowedBooks);
+
+});
+
+// return a borrowed book 
+
+
 
 // Get latest 6 books (New Arrivals)
 app.get("/new-arrivals", async (req, res) => {
