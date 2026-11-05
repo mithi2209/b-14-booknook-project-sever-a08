@@ -286,6 +286,7 @@ app.get("/borrowed-books/:userEmail", async (req, res) => {
 
 });
 
+
 // patch ---return a borrowed book
 app.patch("/return-book/:id", async (req, res) => {
 
@@ -395,6 +396,64 @@ app.patch("/return-book/:id", async (req, res) => {
 });
 
 
+// Patch----> edit my books 
+app.patch("/update-book/:id" , async(req,res) => {
+  try{
+    const { id } = req.params ;
+    const { userEmail , ...data } = req.body ;
+
+      if (!ObjectId.isValid(id)) {
+        return res.status(400).send({
+          message: "Invalid book ID",
+        });
+      }
+
+      if (!userEmail) {
+        return res.status(400).send({
+          message: "User email is required",
+        });
+      }
+
+      const updatedData = {
+        Title: data.Title,
+        Author: data.Author,
+        Category: data.Category,
+        Image: data.Image,
+        Description: data.Description,
+      };
+
+      const result = await allBookCollection.updateOne(
+        {
+          _id: new ObjectId(id),
+          userEmail: userEmail,
+        },
+        {
+          $set: updatedData,
+        }
+      );
+
+
+      if (result.matchedCount === 0) {
+        return res.status(404).send({
+          message: "Not Authorized",
+        });
+      }
+
+      res.send({
+        success: true,
+        message: "Book updated successfully",
+      });
+
+  }
+  catch (error) {
+    console.log(error);
+
+    res.status(500).send({
+      message: "Failed to update book",
+    });
+  }
+
+});
 
 // Get latest 6 books (New Arrivals)
 app.get("/new-arrivals", async (req, res) => {
