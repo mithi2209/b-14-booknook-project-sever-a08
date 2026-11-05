@@ -45,7 +45,7 @@ const client = new MongoClient(process.env.MONGODB_URI);
 // initial checking for server get data
 app.get("/" , (req,res) => {
     res.send({message:"Server is Running.."});
-})
+});
 
 
 // post book or add book
@@ -223,7 +223,7 @@ app.get("/all-books", async (req,res)=>{
     res.send(allBooks) ;
 
 
-})
+});
 
 
 // detail data
@@ -467,10 +467,43 @@ app.get("/new-arrivals", async (req, res) => {
 });
 
 
+// delete--->delete my book
+app.delete("/delete-book/:id" , async (req,res) => {
+
+    try {
+      const { id } = req.params;
+      const { userEmail } = req.body;
+
+      const result = await allBookCollection.deleteOne({
+        _id: new ObjectId(id),
+        userEmail: userEmail,
+      });
+
+      if (result.deletedCount === 0) {
+        return res.status(404).send({
+          message: "Book not found",
+        });
+      }
+
+      res.send({
+        message: "Book deleted successfully",
+      });
+
+    }
+     catch (error) {
+      console.log("Error deleting book:", error);
+
+      res.status(500).send({
+        message: "Failed to delete book",
+      });
+  }
+
+});
+
 // server connect
 app.listen(port ,() =>{
     console.log(`Server is Running On Port : ${port}`);
-} )
+} );
 
 
 
