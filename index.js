@@ -49,16 +49,57 @@ app.get("/" , (req,res) => {
 
 
 // post book or add book
-app.post("/add-books" , async(req,res) => {
 
-   const data = {
-    ...req.body,
-    createdAt: new Date()
-    };
-    const  result = await allBookCollection.insertOne(data);
+app.post("/add-books", async (req, res) => {
+  try {
+    const { ...data } = req.body;
+
+    if (
+      !data.Title ||
+      !data.Author ||
+      !data.Category ||
+      !data.Image ||
+      !data.Description ||
+      !data.userName ||
+      !data.userEmail ||
+      !data.TotalCopies
+    ) {
+      return res.status(400).send({
+        message: "Please provide all required information",
+      });
+    }
+
+      const copies = Number(data.TotalCopies);
+
+      if (!Number.isInteger(copies) || copies <= 0) {
+        return res.status(400).send({
+          message: "Total copies must be a positive number",
+        });
+      }
+
+      const bookData = {
+        ...data,
+        TotalCopies: copies,
+        AvailableCopies: copies,
+        createdAt: new Date(),
+      };
+
+      const result = await allBookCollection.insertOne(bookData);
+
+      res.status(201).send(result);
+
+    }
+    catch (error) {
+      console.log("Error adding book:", error);
+
+      res.status(500).send({
+        message: "Failed to add book",
+      });
     
-    res.send(result);
-})
+    }
+
+});
+
 
 
 
@@ -73,14 +114,16 @@ app.post("/borrow-books", async (req, res) => {
         message: "Invalid book or user information",
       });
     }
+      
+    const bookObjectId = new ObjectId(bookId);
 
     // Find the book
     const book = await allBookCollection.findOne({
-      _id: new ObjectId(bookId),
+      _id: bookObjectId,
     });
 
     if (!book) {
-      return res.send({
+      return res.status(400).send({
         message: "Book not found",
       });
     }
@@ -93,24 +136,25 @@ app.post("/borrow-books", async (req, res) => {
     });
 
     if (alreadyBorrowed) {
-      return res.send({
+      return res.status(409).send({
         message: "You already borrowed this book",
       });
     }
 
-    // Check available copies and decrease by 1
+    // // Decrease AVAILABLE copies only
+
     const updateBookCopies = await allBookCollection.updateOne(
       {
-        _id: new ObjectId(bookId),
-        TotalCopies: { $gt: 0 },
+        _id: bookObjectId ,
+         AvailableCopies: { $gt: 0 },
       },
       {
-        $inc: { TotalCopies: -1 },
+        $inc: { AvailableCopies: -1 },
       }
     );
 
     if (updateBookCopies.modifiedCount === 0) {
-      return res.send({
+      return  res.status(400).send({
         message: "Book Not Available",
       }); 
     }
@@ -123,7 +167,7 @@ app.post("/borrow-books", async (req, res) => {
 
     // Borrow book data
     const borrowedBook = {
-      bookId: new ObjectId(bookId),
+      bookId: bookObjectId,
       bookTitle: book.Title,
       bookImage: book.Image,
       userEmail,
@@ -137,7 +181,7 @@ app.post("/borrow-books", async (req, res) => {
     try {
       const result = await borrowedBooksCollection.insertOne(borrowedBook);
 
-      return res.send({
+      return res.status(201).send({
         message: "Book borrowed successfully",
         result,
       });
@@ -145,19 +189,29 @@ app.post("/borrow-books", async (req, res) => {
     catch (error) {
       // Restore the copy if saving the borrow record fails
       await allBookCollection.updateOne(
-        { _id: new ObjectId(bookId) },
-        { $inc: { TotalCopies: 1 } }
-      );
+        {
+          _id: bookObjectId,
 
-      throw error;
-    }
-  } catch (error) {
+          AvailableCopies: { $lt: book.TotalCopies },
+        },
+
+        {
+          $inc: {
+            AvailableCopies: 1,
+          },
+        });
+
+        throw error;
+      }
+  } 
+  catch (error) {
     console.error("Borrow book error:", error);
 
     res.send({
       message: "Failed to borrow book",
     });
   }
+
 });
 
 
@@ -194,6 +248,28 @@ app.get("/book-details/:id", async (req, res) => {
 });
 
 
+// get my books from added books
+
+app.get("/my-books/:userEmail" , async (req, res) => {
+     
+    try{
+      const {userEmail} = req.params ;
+
+      const result = await allBookCollection
+      .find({userEmail})
+      .sort({createdAt: -1})
+      .toArray() ;
+
+      res.send(result);
+    }
+    catch (error) {
+      console.log(error);
+      res.status(500).send({
+        message: "Failed to get your books",
+      });
+    }
+
+});
 
 // Get borrowed books of a user
 app.get("/borrowed-books/:userEmail", async (req, res) => {
@@ -236,6 +312,40 @@ app.patch("/return-book/:id", async (req, res) => {
       });
     }
 
+
+    // Find original book
+    const originalBook = await allBookCollection.findOne({
+      _id: borrowedBook.bookId,
+    });
+
+
+    if (!originalBook) {
+      return res.status(404).send({
+        message: "Book not found",
+      });
+    }
+
+    // Increase available copies only if below original total
+    const copyResult = await allBookCollection.updateOne(
+      {
+        _id: borrowedBook.bookId,
+        AvailableCopies: { $lt: originalBook.TotalCopies },
+      },
+      {
+        $inc: {
+          AvailableCopies: 1,
+        },
+      }
+    );
+
+
+    if (copyResult.modifiedCount === 0) {
+      return res.send({
+        message: "Available copies could not be updated",
+      });
+    }
+
+
     // marking the book as returned
     const result = await borrowedBooksCollection.updateOne(
       {
@@ -251,28 +361,22 @@ app.patch("/return-book/:id", async (req, res) => {
       }
     );
 
-    if (result.modifiedCount === 0) {
+    // restore copy count if return record update fails
+     if (result.modifiedCount === 0) {
+      await allBookCollection.updateOne(
+        {
+          _id: borrowedBook.bookId,
+          AvailableCopies: { $gt: 0 },
+        },
+        {
+          $inc: {
+            AvailableCopies: -1,
+          },
+        }
+      );
+
       return res.send({
         message: "This book has already been returned",
-      });
-    }
-
-    // Increase TotalCopies 
-      const copyResult = await allBookCollection.updateOne(
-      {
-        _id: borrowedBook.bookId,
-      },
-      {
-        $inc: { TotalCopies: 1 },
-      }
-    );
-
-
-    if (copyResult.matchedCount === 0) {
-      console.error("Original book not found:", borrowedBook.bookId);
-
-      return res.send({
-        message: "Original book not found",
       });
     }
 
