@@ -500,15 +500,56 @@ app.delete("/delete-book/:id" , async (req,res) => {
 
 });
 
+
+
+// get books by category 
+app.get("/books/category/:category",async (req, res) => {
+
+  try {
+
+    const { category } = req.params;
+
+    
+    const categoryMap = {
+      fiction: "Fiction",
+      science: "Science",
+      history: "History",
+      technology: "Technology",
+      biography: "Biography",
+      mystery: "Mystery",
+      romance: "Romance",
+      "art-design": "Art & Design",
+      };
+
+    const categoryName = categoryMap[category.toLowerCase()];
+
+    
+    if (!categoryName) {
+      return res.status(400).send({
+        message: "Invalid category",
+      });
+    }
+
+    const books = await allBookCollection
+      .find({ Category: categoryName })
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    res.send(books);
+
+  } catch (error) {
+    console.log("Error fetching category books:", error);
+
+    res.status(500).send({
+      message: "Failed to fetch category books",
+    });
+  }
+});
+
 // server connect
 app.listen(port ,() =>{
     console.log(`Server is Running On Port : ${port}`);
 } );
-
-
-
-
-
 
 
 
