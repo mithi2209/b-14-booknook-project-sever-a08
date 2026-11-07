@@ -60,7 +60,10 @@ const verifyToken = async (req, res ,next) =>{
   }
 
   // key set
-  const JWKS = createRemoteJWKSet(new URL("http://localhost:3000/api/auth/jwks"))
+  const JWKS = createRemoteJWKSet(new 
+    URL(`${process.env.CLIENT_JWKS_URL}/api/auth/jwks`),
+
+    );
 
  
 
@@ -588,8 +591,6 @@ app.listen(port ,() =>{
     console.log(`Server is Running On Port : ${port}`);
 } );
 
+export default app
 
 
-
-// ...-->setDate= days
-// returnDate.setTime(returnDate.getDate() + 7 * 24 * 60 * 1000);-->setTime = time in milliseconds
