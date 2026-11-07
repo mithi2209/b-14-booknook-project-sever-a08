@@ -2,6 +2,7 @@
 import cors from "cors";
 import  "dotenv/config" ; 
 import express from "express"; 
+import { createRemoteJWKSet, jwtVerify } from "jose";
 import { MongoClient, ObjectId } from 'mongodb';
 
 
@@ -42,6 +43,41 @@ const client = new MongoClient(process.env.MONGODB_URI);
 // ......................................
 
 
+// verify token
+
+const verifyToken = async (req, res ,next) =>{
+
+  const authHeader = req.headers.authorization;
+
+  if(!authHeader){
+    return res.status(401).send({message:"Unauthorized user!"});
+  }
+
+  const token = authHeader.split(" ")[1]
+
+  if(!token){
+    return res.status(401).send({msg: "Token missing !"});
+  }
+
+  // key set
+  const JWKS = createRemoteJWKSet(new URL("http://localhost:3000/api/auth/jwks"))
+
+ 
+
+  try {
+
+    const { payload } = await jwtVerify( token , JWKS )
+
+    next();
+
+  } 
+  catch (error) {
+
+    return res.status(401).send({msg: "Invalid or expired Token  !"});
+  }
+
+}
+
 // initial checking for server get data
 app.get("/" , (req,res) => {
     res.send({message:"Server is Running.."});
@@ -50,7 +86,7 @@ app.get("/" , (req,res) => {
 
 // post book or add book
 
-app.post("/add-books", async (req, res) => {
+app.post("/add-books", verifyToken , async (req, res) => {
   try {
     const { ...data } = req.body;
 
@@ -104,7 +140,7 @@ app.post("/add-books", async (req, res) => {
 
 
 // post borrowed book
-app.post("/borrow-books", async (req, res) => {
+app.post("/borrow-books", verifyToken , async (req, res) => {
     try {
     const { bookId, userEmail } = req.body;
 
@@ -227,7 +263,7 @@ app.get("/all-books", async (req,res)=>{
 
 
 // detail data
-app.get("/book-details/:id", async (req, res) => {
+app.get("/book-details/:id", verifyToken , async (req, res) => {
 
     const id = req.params.id;
 
@@ -250,8 +286,8 @@ app.get("/book-details/:id", async (req, res) => {
 
 // get my books from added books
 
-app.get("/my-books/:userEmail" , async (req, res) => {
-     
+app.get("/my-books/:userEmail" , verifyToken , async (req, res) => {
+
     try{
       const {userEmail} = req.params ;
 
@@ -272,7 +308,7 @@ app.get("/my-books/:userEmail" , async (req, res) => {
 });
 
 // Get borrowed books of a user
-app.get("/borrowed-books/:userEmail", async (req, res) => {
+app.get("/borrowed-books/:userEmail", verifyToken , async (req, res) => {
 
    const userEmail = req.params.userEmail;
 
@@ -288,7 +324,7 @@ app.get("/borrowed-books/:userEmail", async (req, res) => {
 
 
 // patch ---return a borrowed book
-app.patch("/return-book/:id", async (req, res) => {
+app.patch("/return-book/:id", verifyToken , async (req, res) => {
 
   try {
     const id = req.params.id;
@@ -397,7 +433,7 @@ app.patch("/return-book/:id", async (req, res) => {
 
 
 // Patch----> edit my books 
-app.patch("/update-book/:id" , async(req,res) => {
+app.patch("/update-book/:id" , verifyToken , async(req,res) => {
   try{
     const { id } = req.params ;
     const { userEmail , ...data } = req.body ;
@@ -468,7 +504,7 @@ app.get("/new-arrivals", async (req, res) => {
 
 
 // delete--->delete my book
-app.delete("/delete-book/:id" , async (req,res) => {
+app.delete("/delete-book/:id" , verifyToken , async (req,res) => {
 
     try {
       const { id } = req.params;
@@ -545,6 +581,7 @@ app.get("/books/category/:category",async (req, res) => {
     });
   }
 });
+
 
 // server connect
 app.listen(port ,() =>{
